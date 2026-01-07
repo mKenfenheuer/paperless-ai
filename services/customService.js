@@ -265,13 +265,41 @@ class CustomOpenAIService {
         console.log('[DEBUG] Using structured JSON schema mode for response validation');
       }
 
-      const response = await this.client.chat.completions.create(apiPayload);
+      // Retry logic: try up to 3 times if response is null or empty
+      let response = null;
+      let lastError = null;
+      const maxRetries = 3;
+      
+      for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        try {
+          response = await this.client.chat.completions.create(apiPayload);
+          
+          // Check if response has content
+          if (response?.choices?.[0]?.message?.content) {
+            console.log(`[DEBUG] Got valid response on attempt ${attempt}/${maxRetries}`);
+            break; // Success, exit retry loop
+          } else {
+            console.warn(`[DEBUG] Empty response on attempt ${attempt}/${maxRetries}, retrying...`);
+            lastError = new Error('Empty API response');
+            if (attempt < maxRetries) {
+              await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second before retry
+            }
+          }
+        } catch (err) {
+          console.warn(`[DEBUG] Error on attempt ${attempt}/${maxRetries}: ${err.message}`);
+          lastError = err;
+          if (attempt < maxRetries) {
+            await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second before retry
+          }
+        }
+      }
+
+      if (!response?.choices?.[0]?.message?.content) {
+        throw lastError || new Error('Invalid API response structure after 3 retries');
+      }
 
       // Handle response
       //console.log(`MESSAGE: ${response?.choices?.[0]?.message?.content}`);
-      if (!response?.choices?.[0]?.message?.content) {
-        throw new Error('Invalid API response structure');
-      }
 
       // Log token usage
       console.log(`[DEBUG] [${timestamp}] Custom OpenAI request sent`);
