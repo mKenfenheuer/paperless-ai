@@ -190,7 +190,70 @@ class OpenAIService {
 
       await writePromptToFile(systemPrompt, truncatedContent);
 
-      const response = await this.client.chat.completions.create({
+      // Build response schema with enum constraints for tags and document types
+      const responseSchema = {
+        type: "object",
+        properties: {
+          title: {
+            type: "string",
+            description: "A meaningful and short title for the document"
+          },
+          correspondent: {
+            type: ["string", "null"],
+            description: "The sender/correspondent of the document"
+          },
+          tags: {
+            type: "array",
+            items: {
+              type: "string"
+            },
+            description: "Array of tags to assign to the document"
+          },
+          document_type: {
+            type: ["string", "null"],
+            description: "The document type classification"
+          },
+          document_date: {
+            type: "string",
+            description: "The document date in YYYY-MM-DD format"
+          },
+          language: {
+            type: "string",
+            description: "The language of the document (en/de/es/etc)"
+          },
+          custom_fields: {
+            type: "object",
+            description: "Custom fields extracted from the document"
+          }
+        },
+        required: ["title", "tags", "document_date", "language"]
+      };
+
+      // Add enum constraints if restrictions are enabled
+      if (config.restrictToExistingTags === 'yes' && Array.isArray(existingTags) && existingTags.length > 0) {
+        const tagsList = existingTags.map(t => typeof t === 'string' ? t : t.name).filter(Boolean);
+        responseSchema.properties.tags = {
+          type: "array",
+          items: {
+            type: "string",
+            enum: tagsList
+          },
+          description: "Array of tags from the available pool"
+        };
+        console.log(`[DEBUG] Tag enum constraint set with ${tagsList.length} available tags`);
+      }
+
+      if (config.restrictToExistingDocumentTypes === 'yes' && Array.isArray(existingDocumentTypesList) && existingDocumentTypesList.length > 0) {
+        const docTypesList = existingDocumentTypesList.map(t => typeof t === 'string' ? t : t.name).filter(Boolean);
+        responseSchema.properties.document_type = {
+          type: ["string", "null"],
+          enum: [...docTypesList, null],
+          description: "Document type from the available pool only"
+        };
+        console.log(`[DEBUG] Document type enum constraint set with ${docTypesList.length} available types`);
+      }
+
+      const apiPayload = {
         model: model,
         messages: [
           {
@@ -203,7 +266,22 @@ class OpenAIService {
           }
         ],
         ...(model !== 'o3-mini' && { temperature: 0.3 }),
-      });
+      };
+
+      // Add JSON schema mode if using OpenAI with schema support
+      if (model && (model.includes('gpt-4') || model.includes('gpt-3.5'))) {
+        apiPayload.response_format = {
+          type: "json_schema",
+          json_schema: {
+            name: "document_analysis",
+            schema: responseSchema,
+            strict: true
+          }
+        };
+        console.log('[DEBUG] Using structured JSON schema mode for response validation');
+      }
+
+      const response = await this.client.chat.completions.create(apiPayload);
 
       if (!response?.choices?.[0]?.message?.content) {
         throw new Error('Invalid API response structure');

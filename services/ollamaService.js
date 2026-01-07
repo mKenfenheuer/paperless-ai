@@ -141,8 +141,35 @@ class OllamaService {
             console.log(`[DEBUG] Use existing data: ${config.useExistingData}, Restrictions applied based on useExistingData setting`);
             console.log(`[DEBUG] External API data: ${validatedExternalApiData ? 'included' : 'none'}`);
 
+            // Build response schema with enum constraints for tags and document types
+            let responseSchema = JSON.parse(JSON.stringify(this.documentAnalysisSchema));
+
+            // Add enum constraints if restrictions are enabled
+            if (config.restrictToExistingTags === 'yes' && Array.isArray(existingTags) && existingTags.length > 0) {
+              const tagsList = existingTags.map(t => typeof t === 'string' ? t : t.name).filter(Boolean);
+              responseSchema.properties.tags = {
+                type: "array",
+                items: {
+                  type: "string",
+                  enum: tagsList
+                },
+                description: "Array of tags from the available pool"
+              };
+              console.log(`[DEBUG] Tag enum constraint set with ${tagsList.length} available tags for Ollama`);
+            }
+
+            if (config.restrictToExistingDocumentTypes === 'yes' && Array.isArray(existingDocumentTypesList) && existingDocumentTypesList.length > 0) {
+              const docTypesList = existingDocumentTypesList.map(t => typeof t === 'string' ? t : t.name).filter(Boolean);
+              responseSchema.properties.document_type = {
+                type: "string",
+                enum: docTypesList,
+                description: "Document type from the available pool only"
+              };
+              console.log(`[DEBUG] Document type enum constraint set with ${docTypesList.length} available types for Ollama`);
+            }
+
             // Call Ollama API
-            const response = await this._callOllamaAPI(prompt, systemPrompt, numCtx, this.documentAnalysisSchema);
+            const response = await this._callOllamaAPI(prompt, systemPrompt, numCtx, responseSchema);
 
             // Process response
             const parsedResponse = this._processOllamaResponse(response);
