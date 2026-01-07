@@ -191,6 +191,11 @@ class OpenAIService {
       await writePromptToFile(systemPrompt, truncatedContent);
 
       // Build response schema with enum constraints for tags and document types
+      // First, build the base enum list for document types (all available types plus null)
+      const allDocTypesList = Array.isArray(existingDocumentTypesList) 
+        ? existingDocumentTypesList.map(t => typeof t === 'string' ? t : t.name).filter(Boolean)
+        : [];
+      
       const responseSchema = {
         type: "object",
         properties: {
@@ -211,7 +216,8 @@ class OpenAIService {
           },
           document_type: {
             type: ["string", "null"],
-            description: "The document type classification"
+            enum: [...allDocTypesList, null],
+            description: "The document type classification - can be null if no type matches"
           },
           document_date: {
             type: "string",
@@ -243,14 +249,17 @@ class OpenAIService {
         console.log(`[DEBUG] Tag enum constraint set with ${tagsList.length} available tags`);
       }
 
+      // If restrictions enabled, further constrain to only allowed types
       if (config.restrictToExistingDocumentTypes === 'yes' && Array.isArray(existingDocumentTypesList) && existingDocumentTypesList.length > 0) {
-        const docTypesList = existingDocumentTypesList.map(t => typeof t === 'string' ? t : t.name).filter(Boolean);
+        const restrictedDocTypesList = existingDocumentTypesList.map(t => typeof t === 'string' ? t : t.name).filter(Boolean);
         responseSchema.properties.document_type = {
           type: ["string", "null"],
-          enum: [...docTypesList, null],
-          description: "Document type from the available pool only"
+          enum: [...restrictedDocTypesList, null],
+          description: "Document type from the restricted pool only, or null if no match"
         };
-        console.log(`[DEBUG] Document type enum constraint set with ${docTypesList.length} available types`);
+        console.log(`[DEBUG] Document type restricted enum with ${restrictedDocTypesList.length} allowed types`);
+      } else if (allDocTypesList.length > 0) {
+        console.log(`[DEBUG] Document type enum set with all ${allDocTypesList.length} available types`);
       }
 
       const apiPayload = {
@@ -438,8 +447,9 @@ class OpenAIService {
       if (!parsedResponse || !Array.isArray(parsedResponse.tags)) {
         throw new Error('Invalid response structure: missing tags array');
       }
-      if (!parsedResponse.document_type || typeof parsedResponse.document_type !== 'string') {
-        throw new Error('Invalid response structure: document_type is required and must be a string');
+      // document_type can be null or a string from the enum, both are valid
+      if (parsedResponse.document_type !== null && typeof parsedResponse.document_type !== 'string') {
+        throw new Error('Invalid response structure: document_type must be string or null');
       }
       // correspondent can be null or string, both are valid
       if (parsedResponse.correspondent !== null && typeof parsedResponse.correspondent !== 'string') {
