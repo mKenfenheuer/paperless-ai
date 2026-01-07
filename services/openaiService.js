@@ -202,7 +202,6 @@ class OpenAIService {
           },
           document_type: {
             type: ["string", "null"],
-            enum: [...allDocTypesList, null],
             description: "The document type classification - can be null if no type matches"
           },
           document_date: {
@@ -286,7 +285,7 @@ class OpenAIService {
           response = await this.client.chat.completions.create(apiPayload);
           
           // Check if response has content
-          if (response?.choices?.[0]?.message?.content) {
+          if (response?.usage.completion_tokens > 0 && response?.choices?.[0]?.message?.content) {
             console.log(`[DEBUG] Got valid response on attempt ${attempt}/${maxRetries}`);
             break; // Success, exit retry loop
           } else {
