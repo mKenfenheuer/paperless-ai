@@ -441,9 +441,6 @@ class OpenAIService {
       if (!parsedResponse.document_type || typeof parsedResponse.document_type !== 'string') {
         throw new Error('Invalid response structure: document_type is required and must be a string');
       }
-      if (!parsedResponse.document_type || typeof parsedResponse.document_type !== 'string') {
-        throw new Error('Invalid response structure: document_type is required and must be a string');
-      }
       // correspondent can be null or string, both are valid
       if (parsedResponse.correspondent !== null && typeof parsedResponse.correspondent !== 'string') {
         throw new Error('Invalid response structure: correspondent must be string or null');
