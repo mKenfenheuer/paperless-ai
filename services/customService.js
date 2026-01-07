@@ -264,6 +264,9 @@ class CustomOpenAIService {
         console.log('[DEBUG] Using structured JSON schema mode for response validation');
       }
 
+      console.log('[DEBUG] Sending request to Custom OpenAI API...');
+      console.log('[DEBUG] Request:', JSON.stringify(apiPayload, null, 2));
+
       // Retry logic: try up to 3 times if response is null or empty
       let response = null;
       let lastError = null;
@@ -310,6 +313,8 @@ class CustomOpenAIService {
         completionTokens: usage.completion_tokens,
         totalTokens: usage.total_tokens
       };
+      
+      console.log('[DEBUG] Raw JSON content:', response.choices[0].message.content);
 
       let jsonContent = response.choices[0].message.content;
       jsonContent = jsonContent.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
