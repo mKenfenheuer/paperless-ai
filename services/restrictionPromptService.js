@@ -123,3 +123,5 @@ class RestrictionPromptService {
     return 'No restriction applied';
   }
 }
+
+module.exports = RestrictionPromptService;
